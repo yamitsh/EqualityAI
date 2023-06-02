@@ -1,29 +1,40 @@
 import torch
 from diffusers import StableDiffusionPipeline
 from PIL import Image
+import gc
 
 
 class DeepFloyd(object):
-    def __init__(self, prompt):
+    def __init__(self, prompt, num_images=10):
         self.pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", revision="fp16",
-                                                       torch_dtype=torch.float16)
+                                                            torch_dtype=torch.float16)
+        self.pipe.to("cuda")
         self.prompt = prompt
+        self.num_images = num_images
 
     def generate_single_image(self):
-        self.pipe.to("cuda")
         image = self.pipe(self.prompt).images[0]
-
-        # you can save the image with
-        image.save(f"doctor_selfie.png")
 
         '''
         If at some point you get a black image, it may be because the content filter 
-        built inside the model might have detected an NSFW result. If you believe this
-        shouldn't be the case, try tweaking your prompt or using a different seed.
+        built inside the model might have detected an NSFW result. 
+        If you believe this shouldn't be the case, try tweaking your prompt or 
+        using a different seed.
         '''
+        return image
+
+    def save_image(self, image_obj, file_name=""):
+        if not file_name:
+            file_name = self.prompt.replace(" ", "_")
+        if type(image_obj) is list:
+            for i, img in enumerate(image_obj):
+                img.save("{file_name}.png".format(file_name="{file_name}_{index}".format
+                (file_name=file_name, index=i)))
+
+        else:
+            image_obj.save("{file_name}.png".format(file_name=file_name))
 
     def image_grid(self, imgs, rows, cols):
-
         # generate several images of the same prompt at once
         assert len(imgs) == rows * cols
 
@@ -33,19 +44,22 @@ class DeepFloyd(object):
 
         for i, img in enumerate(imgs):
             grid.paste(img, box=(i % cols * w, i // cols * h))
+
         return grid
 
-    def generate_multiple_images(self, num_images=1):
-        # generate multiple images for the same prompt by simply using a list with the
-        # same prompt repeated several times. We'll send the list to the pipeline
-        # instead of the string we used before.
+    def generate_multiple_images(self):
+        images = []
 
-        multi_prompt = [self.prompt] * num_images
-        images = self.pipe(multi_prompt).images
-        grid = self.image_grid(images, rows=1, cols=3)
+        for i in range(self.num_images):
+            image = self.generate_single_image()
+            images.append(image)
 
-        # you can save the grid with
-        grid.save(f"astronaut_rides_horse.png")
+        return images
+
+    def delete(self):
+        del self.pipe
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
@@ -53,8 +67,13 @@ if __name__ == '__main__':
     # prompt = input("Enter your prompt: ")
     num_images = 3
 
-    deepf = DeepFloyd(prompt)
-    deepf.generate_single_image()
-    deepf.generate_multiple_images(num_images)
+    deepf = DeepFloyd(prompt, num_images)
+    single_img = deepf.generate_single_image()
+    deepf.save_image(single_img)
+
+    multi_img = deepf.generate_multiple_images()
+    deepf.save_image(multi_img)
+
+    deepf.delete()
 
 

@@ -5,3 +5,4 @@ sentencepiece~=0.1
 accelerate~=0.18
 bitsandbytes~=0.38
 torch~=2.0
+deepface~=0.0.79
